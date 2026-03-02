@@ -1,5 +1,5 @@
 import asyncio
-from logging.config import file_config
+from logging.config import fileConfig
 
 from sqlalchemy import pool
 from sqlalchemy.engine import Connection
@@ -16,13 +16,15 @@ from app.core.config import settings
 # access to the values within the .ini file in use.
 config = context.config
 
-# 2. Set the DB URL from our app settings
-config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
+# 2. Set the DB URL
+# Use the URL from the config object (alembic.ini) if available
+db_url = config.get_main_option("sqlalchemy.url") or settings.DATABASE_URL
+config.set_main_option("sqlalchemy.url", db_url)
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
 if config.config_file_name is not None:
-    file_config(config.config_file_name)
+    fileConfig(config.config_file_name)
 
 # 3. Set target_metadata for autogenerate
 target_metadata = Base.metadata

@@ -4,17 +4,22 @@ import pytest_asyncio
 from typing import AsyncGenerator, Generator
 from httpx import AsyncClient, ASGITransport
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
+from sqlalchemy.pool import StaticPool
 
 from app.main import app
 from app.db.base import Base
 from app.db.session import get_db
-from app.core.config import settings
 
-# Use a separate test database or an in-memory SQLite if needed
-# For now, we'll use the same DB but with a different naming convention or just cleanup
-TEST_DATABASE_URL = settings.DATABASE_URL + "_test"
+# Use in-memory SQLite for testing when Docker is unavailable
+TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 
-engine_test = create_async_engine(TEST_DATABASE_URL)
+# StaticPool is required for in-memory SQLite to share the same connection
+engine_test = create_async_engine(
+    TEST_DATABASE_URL,
+    connect_args={"check_same_thread": False},
+    poolclass=StaticPool,
+)
+
 TestingSessionLocal = async_sessionmaker(
     bind=engine_test, 
     class_=AsyncSession, 
@@ -31,13 +36,11 @@ def event_loop() -> Generator:
 @pytest_asyncio.fixture(scope="session")
 async def setup_db():
     """Setup and teardown the test database."""
-    # Create tables
     async with engine_test.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     
     yield
     
-    # Drop tables
     async with engine_test.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
     await engine_test.dispose()
@@ -47,6 +50,7 @@ async def db_session(setup_db) -> AsyncGenerator[AsyncSession, None]:
     """Provide a clean database session for each test."""
     async with TestingSessionLocal() as session:
         yield session
+        # Use rollback to ensure each test is independent
         await session.rollback()
 
 @pytest_asyncio.fixture

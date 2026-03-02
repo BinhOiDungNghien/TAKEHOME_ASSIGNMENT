@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     AGENT_MODEL: str = "gpt-4o-mini"
     
     # Database Configuration
-    DATABASE_URL: str = Field("postgresql+asyncpg://postgres:postgres@db:5432/chat_db", env="DATABASE_URL")
+    DATABASE_URL: str = Field("sqlite+aiosqlite:///./chat.db", env="DATABASE_URL")
     
     # App Persona (Stored centrally for easy updates)
     AGENT_PERSONA: str = (

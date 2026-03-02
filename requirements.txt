@@ -3,6 +3,7 @@ uvicorn[standard]
 openai-agents
 sqlalchemy[asyncio]
 asyncpg
+aiosqlite
 alembic
 pydantic-settings
 python-dotenv
