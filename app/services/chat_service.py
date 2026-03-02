@@ -2,6 +2,7 @@ import uuid
 import json
 import asyncio
 import time
+import os
 from typing import AsyncGenerator, Dict, Any, List
 from agents import Agent, Runner
 from openai.types.responses import ResponseTextDeltaEvent
@@ -16,7 +17,11 @@ class AssistantContent:
 
 class ChatService:
     def __init__(self):
-        """Initialize the OpenAI Agent with its persona and model."""
+        """Initialize the OpenAI Agent."""
+        # Ensure the SDK can find the key by setting it in the environment
+        if settings.OPENAI_API_KEY:
+            os.environ["OPENAI_API_KEY"] = settings.OPENAI_API_KEY
+            
         self.agent = Agent(
             name="Assistant",
             instructions=settings.AGENT_PERSONA,
@@ -39,7 +44,11 @@ class ChatService:
         """
         full_assistant_content: List[str] = []
         
-        result = Runner.run_streamed(self.agent, input=message)
+        # Use the standard runner call
+        result = Runner.run_streamed(
+            self.agent, 
+            input=message
+        )
         event_iterator = result.stream_events().__aiter__()
 
         last_event_time = asyncio.get_event_loop().time()
@@ -56,7 +65,6 @@ class ChatService:
                     if event.type == "raw_response_event" and hasattr(event.data, "delta"):
                         delta_text = event.data.delta
                         full_assistant_content.append(delta_text)
-                        # Update the tracker shared with the caller
                         content_tracker.content = "".join(full_assistant_content)
                         
                         last_event_time = asyncio.get_event_loop().time()
