@@ -20,3 +20,8 @@ class SessionHistoryResponse(BaseModel):
 class SessionDeleteResponse(BaseModel):
     status: str
     message: str
+
+class ChatStreamRequest(BaseModel):
+    session_id: uuid.UUID
+    user_id: str
+    message: str
