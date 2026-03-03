@@ -17,6 +17,7 @@ async def save_assistant_message(session_id: uuid.UUID, content: str, user_id: s
     Background task to persist assistant message and update summary if needed.
     """
     if content:
+        # AsyncSessionLocal() creates a new session from the shared engine pool
         async with AsyncSessionLocal() as fresh_db:
             # 1. Save the assistant message
             await create_message(fresh_db, session_id, MessageRole.ASSISTANT, content)
