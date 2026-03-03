@@ -62,13 +62,17 @@ async def create_message(
     db: AsyncSession,
     session_id: uuid.UUID,
     role: MessageRole,
-    content: str
+    content: str,
+    token_count: Optional[int] = None,
+    finish_reason: Optional[str] = None
 ) -> ChatMessage:
-    """Create and persist a new message in a session."""
+    """Create and persist a new message in a session with optional metadata."""
     message = ChatMessage(
         session_id=session_id,
         role=role,
-        content=content
+        content=content,
+        token_count=token_count,
+        finish_reason=finish_reason
     )
     db.add(message)
     await db.flush()

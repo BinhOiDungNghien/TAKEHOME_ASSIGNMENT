@@ -3,6 +3,7 @@ import json
 import asyncio
 import time
 import os
+import tiktoken
 from typing import AsyncGenerator, Dict, Any, List, Optional
 from agents import Agent, Runner
 from openai.types.responses import ResponseTextDeltaEvent
@@ -11,9 +12,11 @@ from app.core.config import settings
 from app.models.chat import MessageRole, ChatMessage
 
 class AssistantContent:
-    """Simple class to track content across generator execution."""
+    """Simple class to track content and metadata across generator execution."""
     def __init__(self):
         self.content = ""
+        self.finish_reason = "stop"
+        self.token_count = 0
 
 class ChatService:
     def __init__(self):
@@ -31,21 +34,22 @@ class ChatService:
     async def summarize_history(self, history: List[ChatMessage], current_summary: Optional[str] = None) -> str:
         """
         Creates a concise summary of the conversation so far.
-        Incorporates the existing summary to maintain continuity.
         """
+        # We re-import here to avoid circular dependencies if any
+        from openai import AsyncOpenAI
+        client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+        
         history_text = "\n".join([f"{m.role.value.upper()}: {m.content}" for m in history])
         
         prompt = (
             "Summarize the following chat history into a single, concise paragraph. "
-            "Focus on key facts, user preferences, and the current state of the discussion. "
-            "If a summary already exists, incorporate the new information into it.\n\n"
+            "Focus on key facts and user preferences.\n\n"
             f"EXISTING SUMMARY: {current_summary or 'None'}\n\n"
             f"NEW MESSAGES:\n{history_text}\n\n"
             "CONCISE SUMMARY:"
         )
 
-        # Use a non-streaming call for the summary
-        response = await self.openai_client.chat.completions.create(
+        response = await client.chat.completions.create(
             model=self.agent.model,
             messages=[{"role": "system", "content": "You are a helpful assistant that summarizes conversations."},
                       {"role": "user", "content": prompt}],
@@ -54,8 +58,16 @@ class ChatService:
         return response.choices[0].message.content
 
     def _format_sse(self, event: str, data: Dict[Any, Any]) -> str:
-        """Helper to format SSE wire format: event: name\ndata: JSON\n\n"""
+        """Helper to format SSE wire format."""
         return f"event: {event}\ndata: {json.dumps(data)}\n\n"
+
+    def _count_tokens(self, text: str) -> int:
+        """Calculate token count locally using tiktoken."""
+        try:
+            encoding = tiktoken.encoding_for_model(self.agent.model)
+            return len(encoding.encode(text))
+        except:
+            return len(text) // 4
 
     async def stream_chat(
         self, 
@@ -66,18 +78,18 @@ class ChatService:
         summary: Optional[str] = None
     ) -> AsyncGenerator[str, None]:
         """
-        Orchestrates the SSE stream with injected context.
+        Orchestrates the SSE stream with metadata tracking.
         """
         start_time = asyncio.get_event_loop().time()
         ttft_recorded = False
         full_assistant_content: List[str] = []
 
-        # 1. Prepare dynamic instructions (Persona + Summary)
+        # 1. Prepare instructions
         dynamic_instructions = settings.AGENT_PERSONA
         if summary:
             dynamic_instructions += f"\n\nCONTEXT FROM PREVIOUS CONVERSATION:\n{summary}"
 
-        # 2. Format history for context
+        # 2. Format history
         history_context = ""
         if history:
             history_context = "PREVIOUS CONVERSATION HISTORY:\n"
@@ -85,20 +97,16 @@ class ChatService:
                 history_context += f"{m.role.value.upper()}: {m.content}\n"
             history_context += "\n"
 
-        # 3. Initialize Agent with dynamic context
+        # 3. Initialize Agent
         transient_agent = Agent(
             name=self.agent.name,
             instructions=dynamic_instructions,
             model=self.agent.model
         )
 
-        # 4. Run the agent with context prepended to the current input
+        # 4. Run agent
         full_input = f"{history_context}USER: {message}"
-        
-        result = Runner.run_streamed(
-            transient_agent, 
-            input=full_input
-        )
+        result = Runner.run_streamed(transient_agent, input=full_input)
         event_iterator = result.stream_events().__aiter__()
 
         last_event_time = asyncio.get_event_loop().time()
@@ -108,12 +116,10 @@ class ChatService:
         while not is_done:
             try:
                 time_to_heartbeat = heartbeat_interval - (asyncio.get_event_loop().time() - last_event_time)
-
                 try:
                     event = await asyncio.wait_for(event_iterator.__anext__(), timeout=max(0.1, time_to_heartbeat))
 
                     if event.type == "raw_response_event" and hasattr(event.data, "delta"):
-                        # Capture TTFT (Time to First Token)
                         if not ttft_recorded:
                             ttft = (asyncio.get_event_loop().time() - start_time) * 1000
                             print(f"EVAL [session={session_id}]: TTFT={ttft:.2f}ms")
@@ -122,9 +128,13 @@ class ChatService:
                         delta_text = event.data.delta
                         full_assistant_content.append(delta_text)
                         content_tracker.content = "".join(full_assistant_content)
-
+                        
                         last_event_time = asyncio.get_event_loop().time()
                         yield self._format_sse("agent.message.delta", {"text": delta_text})
+                    
+                    # Capture finish reason if available in metadata
+                    if event.type == "raw_response_event" and hasattr(event.data, "finish_reason") and event.data.finish_reason:
+                        content_tracker.finish_reason = event.data.finish_reason
 
                 except asyncio.TimeoutError:
                     last_event_time = asyncio.get_event_loop().time()
@@ -132,8 +142,9 @@ class ChatService:
 
                 except StopAsyncIteration:
                     is_done = True
+                    content_tracker.token_count = self._count_tokens(content_tracker.content)
                     total_latency = (asyncio.get_event_loop().time() - start_time) * 1000
-                    print(f"EVAL [session={session_id}]: Total Latency={total_latency:.2f}ms")
+                    print(f"EVAL [session={session_id}]: Total={total_latency:.2f}ms | Tokens={content_tracker.token_count}")
                     yield self._format_sse("agent.message.done", {"session_id": str(session_id)})
 
             except Exception as e:

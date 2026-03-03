@@ -12,15 +12,27 @@ from app.models.chat import MessageRole
 
 router = APIRouter()
 
-async def save_assistant_message(session_id: uuid.UUID, content: str, user_id: str):
+async def save_assistant_message(
+    session_id: uuid.UUID, 
+    content: str, 
+    user_id: str,
+    token_count: int = 0,
+    finish_reason: str = "stop"
+):
     """
     Background task to persist assistant message and update summary if needed.
     """
     if content:
-        # AsyncSessionLocal() creates a new session from the shared engine pool
         async with AsyncSessionLocal() as fresh_db:
-            # 1. Save the assistant message
-            await create_message(fresh_db, session_id, MessageRole.ASSISTANT, content)
+            # 1. Save the assistant message with metadata
+            await create_message(
+                fresh_db, 
+                session_id, 
+                MessageRole.ASSISTANT, 
+                content,
+                token_count=token_count,
+                finish_reason=finish_reason
+            )
             
             # 2. Check if we should update the summary (e.g., every 10 messages)
             from app.crud.chat import get_session_context, update_session_summary
@@ -50,8 +62,15 @@ async def chat_stream(
     from app.crud.chat import get_session_context
     session = await get_session_context(db, request.session_id, request.user_id)
     
-    # 2. Persist new user message
-    await create_message(db, request.session_id, MessageRole.USER, request.message)
+    # 2. Persist new user message with token count
+    user_token_count = chat_service._count_tokens(request.message)
+    await create_message(
+        db, 
+        request.session_id, 
+        MessageRole.USER, 
+        request.message,
+        token_count=user_token_count
+    )
     await db.commit()
 
     # Tracker object to capture full content across the async generator
@@ -70,8 +89,15 @@ async def chat_stream(
         async for chunk in stream:
             yield chunk
 
-        # 4. Final Persistence: Schedule background persistence
-        background_tasks.add_task(save_assistant_message, request.session_id, tracker.content, request.user_id)
+        # 4. Final Persistence: Pass captured metadata
+        background_tasks.add_task(
+            save_assistant_message, 
+            request.session_id, 
+            tracker.content, 
+            request.user_id,
+            tracker.token_count,
+            tracker.finish_reason
+        )
 
     return StreamingResponse(
         event_generator(),

@@ -39,6 +39,10 @@ class ChatMessage(Base):
     role: Mapped[MessageRole] = mapped_column(SQLEnum(MessageRole), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    
+    # Metadata for telemetry
+    token_count: Mapped[Optional[int]] = mapped_column(nullable=True)
+    finish_reason: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
     # Relationship to session
     session: Mapped["ChatSession"] = relationship(back_populates="messages")
