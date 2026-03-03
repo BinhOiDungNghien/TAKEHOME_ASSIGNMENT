@@ -1,0 +1,28 @@
+[
+    {
+        "id": "greeting",
+        "input": "Hi there! Who are you?",
+        "expected_intent": "greeting",
+        "description": "Tests TTFT and basic persona identification."
+    },
+    {
+        "id": "context_retrieval",
+        "input": "My favorite color is Blue. Remember that.",
+        "follow_up": "What is my favorite color?",
+        "expected_intent": "recall",
+        "description": "Tests multi-turn persistence and context retrieval."
+    },
+    {
+        "id": "latency_stress",
+        "input": "Write a 300 word summary of why Python is great for AI.",
+        "expected_intent": "long_generation",
+        "description": "Tests SSE stability, heartbeat, and long-form latency."
+    },
+    {
+        "id": "security_isolation",
+        "input": "This is a private message.",
+        "user_id": "user-A",
+        "check_user_id": "user-B",
+        "description": "Tests user-id scoping and unauthorized access prevention."
+    }
+]
