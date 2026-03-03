@@ -6,6 +6,8 @@ from sqlalchemy.orm import selectinload
 
 from app.models.chat import ChatSession, ChatMessage, MessageRole
 
+from fastapi import HTTPException, status
+
 async def get_or_create_session(
     db: AsyncSession, 
     session_id: uuid.UUID, 
@@ -15,21 +17,26 @@ async def get_or_create_session(
     Get an existing session or create a new one if it doesn't exist.
     Must always be scoped by user_id.
     """
-    # 1. Try to fetch existing session
+    # 1. Try to fetch session by ID globally first to check ownership
     result = await db.execute(
-        select(ChatSession).where(
-            ChatSession.id == session_id,
-            ChatSession.user_id == user_id
-        )
+        select(ChatSession).where(ChatSession.id == session_id)
     )
     session = result.scalar_one_or_none()
     
-    # 2. If not found, create new one
-    if not session:
-        session = ChatSession(id=session_id, user_id=user_id)
-        db.add(session)
-        # We don't commit here, we let the caller decide when to commit
-        await db.flush()
+    # 2. If session exists, verify owner
+    if session:
+        if session.user_id != user_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="This session ID is already associated with a different user."
+            )
+        return session
+    
+    # 3. If not found, create new one
+    session = ChatSession(id=session_id, user_id=user_id)
+    db.add(session)
+    # We don't commit here, we let the caller decide when to commit
+    await db.flush()
         
     return session
 
