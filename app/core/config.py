@@ -8,7 +8,6 @@ class Settings(BaseSettings):
     API_V1_STR: str = "/api/v1"
     
     # OpenAI Configuration
-    # We use Field(..., env="...") to explicitly link to env vars
     OPENAI_API_KEY: Optional[str] = Field(None, env="OPENAI_API_KEY")
     AGENT_MODEL: str = "gpt-4o-mini"
     
@@ -17,8 +16,12 @@ class Settings(BaseSettings):
     
     # App Persona (Stored centrally for easy updates)
     AGENT_PERSONA: str = (
-        "You are a helpful and concise AI assistant. "
-        "Your goal is to provide clear and accurate information to the user."
+        "Today is {current_date}. "
+        "You are a technical assistant for the VCAPTECH assignment. "
+        "You have access to the repository documentation via the search_docs tool. "
+        "When asked about project requirements, tech stack, or event types, "
+        "ALWAYS use the search_docs tool first. "
+        "Use search_web for real-time information outside the repo."
     )
 
     # Pydantic-settings configuration
