@@ -24,6 +24,8 @@ services:
       - .:/app
     env_file:
       - .env
+    environment:
+      - TAVILY_API_KEY=${TAVILY_API_KEY}
     ports:
       - "8000:8000"
     depends_on:

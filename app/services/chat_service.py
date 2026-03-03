@@ -27,6 +27,7 @@ class ChatService:
             
         # Define our RAG search tool
         from app.services.rag_service import rag_service
+        
         @function_tool
         def search_docs(query: str) -> str:
             """
@@ -48,19 +49,34 @@ class ChatService:
             Search the live internet for real-time information, news, or general knowledge.
             Use this when the user asks about anything outside of this specific repository.
             """
-            return search_service.search(query)
+            try:
+                print(f"WEB SEARCH: Searching for: {query}")
+                return search_service.search(query)
+            except Exception as e:
+                print(f"WEB SEARCH: Search failed: {e}")
+                return f"Error performing web search: {str(e)}"
+
+        @function_tool
+        def get_current_time() -> str:
+            """
+            Returns the current system date and time. 
+            Use this to orient yourself before answering questions about dates, schedules, or time-relative facts.
+            """
+            from datetime import datetime
+            return datetime.now().strftime("%A, %B %d, %Y %H:%M:%S")
 
         self.agent = Agent(
             name="Assistant",
             instructions=(
                 f"{settings.AGENT_PERSONA}\n\n"
-                "You have two specialized tools:\n"
-                "1. search_docs: Use this for project-specific info (README, requirements).\n"
-                "2. search_web: Use this for all other real-time or general knowledge queries.\n"
-                "Choose the right tool based on the user's intent."
+                "You have three specialized tools:\n"
+                "1. search_docs: Use for project-specific info.\n"
+                "2. search_web: Use for real-time or general web knowledge.\n"
+                "3. get_current_time: Use to check today's date.\n\n"
+                "IMPORTANT: If a user asks about a specific date, you MUST use the get_current_time tool first to orient yourself before searching or answering."
             ),
             model=settings.AGENT_MODEL,
-            tools=[search_docs, search_web]
+            tools=[search_docs, search_web, get_current_time]
         )
 
     async def summarize_history(self, history: List[ChatMessage], current_summary: Optional[str] = None) -> str:
@@ -115,10 +131,21 @@ class ChatService:
         ttft_recorded = False
         full_assistant_content: List[str] = []
 
-        # 1. Prepare instructions
-        dynamic_instructions = settings.AGENT_PERSONA
+        # 1. Prepare dynamic instructions (Fresh Persona with Date + Summary)
+        from datetime import datetime
+        current_date_str = datetime.now().strftime("%A, %B %d, %Y")
+        
+        # Inject the real date into the template from settings
+        persona_with_date = settings.AGENT_PERSONA.format(current_date=current_date_str)
+        
+        dynamic_instructions = (
+            f"{persona_with_date}\n\n"
+            f"CRITICAL TEMPORAL CONTEXT: The absolute current date is {current_date_str}. "
+            "Any date prior to this is the PAST. Any date after this is the FUTURE. "
+            "When answering questions about specific dates, use this context to correctly identify if an event has already happened."
+        )
         if summary:
-            dynamic_instructions += f"\n\nCONTEXT FROM PREVIOUS CONVERSATION:\n{summary}"
+            dynamic_instructions += f"\n\nLONG-TERM MEMORY (SUMMARY):\n{summary}"
 
         # 2. Format history
         history_context = ""
