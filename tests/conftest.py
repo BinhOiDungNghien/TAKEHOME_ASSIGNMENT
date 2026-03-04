@@ -10,10 +10,9 @@ from app.main import app
 from app.db.base import Base
 from app.db.session import get_db
 
-# Use in-memory SQLite for testing when Docker is unavailable
+# CRITICAL: Always use in-memory SQLite for tests to avoid touching real DB
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 
-# StaticPool is required for in-memory SQLite to share the same connection
 engine_test = create_async_engine(
     TEST_DATABASE_URL,
     connect_args={"check_same_thread": False},
@@ -50,7 +49,6 @@ async def db_session(setup_db) -> AsyncGenerator[AsyncSession, None]:
     """Provide a clean database session for each test."""
     async with TestingSessionLocal() as session:
         yield session
-        # Use rollback to ensure each test is independent
         await session.rollback()
 
 @pytest_asyncio.fixture
