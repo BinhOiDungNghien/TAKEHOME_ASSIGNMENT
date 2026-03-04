@@ -8,8 +8,8 @@ from app.core.config import settings
 class RAGService:
     def __init__(self):
         # 1. Initialize Persistent Chroma Client
-        # This saves the vector data to a local folder named '.db/chroma'
-        self.client = chromadb.PersistentClient(path=".db/chroma")
+        # Use absolute path to ensure consistency in Docker
+        self.client = chromadb.PersistentClient(path="/app/.db/chroma")
         
         # 2. Use OpenAI for Embeddings
         self.embedding_fn = embedding_functions.OpenAIEmbeddingFunction(

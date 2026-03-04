@@ -15,6 +15,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy all code
 COPY . .
 
+# Ensure the database directory exists for ChromaDB
+RUN mkdir -p /app/.db/chroma
+
 # Expose FastAPI's default port
 EXPOSE 8000
 
