@@ -24,17 +24,79 @@ TAVILY_API_KEY=your_tavily_api_key
 DATABASE_URL=postgresql+asyncpg://postgres:postgres@db:5432/chat_db
 ```
 
-### 3. Running the Service
+### 4. Running the Service
 To build and start the application along with the PostgreSQL database, use:
 ```bash
 docker compose up --build
 ```
 The service will be accessible at http://localhost:8000. You can check the status via the health endpoint at /api/v1/health.
 
-### 4. Running the Tests
+### 5. Running the Tests
 I have included a suite of integration and unit tests. To run them locally using an in-memory database:
 ```bash
 pytest
+```
+
+---
+
+## API Usage (via curl)
+
+You can test all endpoints directly from your terminal using these verified commands:
+
+### 1. Health Check
+```bash
+curl http://localhost:8000/api/v1/health
+```
+
+### 2. Chat Streaming (SSE)
+```bash
+curl -N -X POST http://localhost:8000/api/v1/chat/stream \
+     -H "Content-Type: application/json" \
+     -d '{
+       "session_id": "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11",
+       "user_id": "user-123",
+       "message": "Hello, what is the main goal of this project?"
+     }'
+```
+
+### 3. Session History
+```bash
+curl "http://localhost:8000/api/v1/sessions/a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11/history?user_id=user-123"
+```
+
+### 4. Delete Session
+```bash
+curl -X DELETE "http://localhost:8000/api/v1/sessions/a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11?user_id=user-123"
+```
+
+---
+
+## Knowledge Augmentation (Tools)
+
+The AI Agent can autonomously use tools to provide grounded answers. You can trigger these via the `/chat/stream` endpoint:
+
+### 1. Internal Documentation (RAG)
+Trigger the agent to search this repository's local files:
+```bash
+curl -N -X POST http://localhost:8000/api/v1/chat/stream \
+     -H "Content-Type: application/json" \
+     -d '{
+       "session_id": "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11",
+       "user_id": "user-123",
+       "message": "Consult the docs: what is the required tech stack?"
+     }'
+```
+
+### 2. Live Web Search
+Trigger the agent to search the live internet for real-time information:
+```bash
+curl -N -X POST http://localhost:8000/api/v1/chat/stream \
+     -H "Content-Type: application/json" \
+     -d '{
+       "session_id": "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11",
+       "user_id": "user-123",
+       "message": "Use web search: what is the current weather in Tokyo?"
+     }'
 ```
 
 ---
