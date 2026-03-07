@@ -246,11 +246,11 @@ class RAGService:
             top_n=n_results
         )
         
-        # 4. Format output
+        # 4. Format output with structured tags for easier citation
         context_parts = []
         for res in reranked:
             source = res['metadata']['source']
-            context_parts.append(f"--- FROM {source} ---\n{res['doc']}")
+            context_parts.append(f"<source name=\"{source}\">\n{res['doc']}\n</source>")
             
         return "\n\n".join(context_parts)
 

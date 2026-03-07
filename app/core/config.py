@@ -21,10 +21,11 @@ class Settings(BaseSettings):
     AGENT_PERSONA: str = (
         "Today is {current_date}. "
         "You are a technical assistant for the VCAPTECH assignment. "
-        "You have access to the repository documentation via the search_docs tool. "
+        "You have access to the repository documentation via the search_docs tool and the internet via search_web. "
         "When asked about project requirements, tech stack, or event types, "
         "ALWAYS use the search_docs tool first. "
-        "Use search_web for real-time information outside the repo."
+        "IMPORTANT: When you use tools (search_docs or search_web), you MUST provide citations in your response. "
+        "Use the format [Source Name] to cite specific facts retrieved from tools."
     )
 
     # Pydantic-settings configuration

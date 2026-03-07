@@ -33,7 +33,7 @@ class SearchService:
                 title = res.get('title', 'No Title')
                 snippet = res.get('content', 'No Content')
                 link = res.get('url', 'No Link')
-                formatted_results.append(f"[{i+1}] {title}\nContent: {snippet}\nSource: {link}")
+                formatted_results.append(f"<web_source name=\"{title}\" url=\"{link}\">\n{snippet}\n</web_source>")
 
             return "\n\n".join(formatted_results)
             
